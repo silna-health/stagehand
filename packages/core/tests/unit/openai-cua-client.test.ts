@@ -135,3 +135,61 @@ describe("OpenAICUAClient", () => {
     expect(result.completed).toBe(true);
   });
 });
+
+describe("OpenAICUAClient store / ZDR handling", () => {
+  function createClientWithMockedResponses(store?: boolean) {
+    const client = new OpenAICUAClient("openai", "gpt-5.6-luna", undefined, {
+      apiKey: "test-key",
+      ...(store === undefined ? {} : { store }),
+    });
+
+    const createMock = vi.fn().mockResolvedValue({
+      id: "resp_new",
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "done" }] },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+
+    (
+      client as unknown as {
+        client: { responses: { create: typeof createMock } };
+      }
+    ).client = { responses: { create: createMock } };
+
+    const getAction = (
+      client as unknown as {
+        getAction: (
+          inputItems: unknown[],
+          previousResponseId?: string,
+        ) => Promise<unknown>;
+      }
+    ).getAction.bind(client);
+
+    return { getAction, createMock };
+  }
+
+  it("runs the Responses API statelessly when store:false (ZDR org)", async () => {
+    const { getAction, createMock } = createClientWithMockedResponses(false);
+
+    await getAction([{ role: "user", content: "hi" }], "resp_prev");
+
+    const params = createMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.store).toBe(false);
+    expect(params.include).toContain("reasoning.encrypted_content");
+    // No stored response to reference in stateless mode.
+    expect(params.previous_response_id).toBeUndefined();
+  });
+
+  it("uses previous_response_id and omits store in default (stateful) mode", async () => {
+    const { getAction, createMock } =
+      createClientWithMockedResponses(undefined);
+
+    await getAction([{ role: "user", content: "hi" }], "resp_prev");
+
+    const params = createMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.previous_response_id).toBe("resp_prev");
+    expect(params.store).toBeUndefined();
+    expect(params.include).toBeUndefined();
+  });
+});
