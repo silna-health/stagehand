@@ -172,6 +172,15 @@ export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   headers?: Record<string, string>;
   /** Reasoning effort for reasoning-capable models (e.g., "none", "low", "medium", "high") */
   reasoningEffort?: string;
+  /**
+   * OpenAI Responses API storage toggle for CUA agents. Defaults to `true`
+   * (stateful: Stagehand relies on `previous_response_id` for cross-step
+   * context). Set to `false` for OpenAI orgs with Zero Data Retention (ZDR)
+   * enabled — Stagehand then runs the Responses API statelessly, resending the
+   * full conversation each step (with encrypted reasoning) instead of
+   * referencing a stored response. Only affects the OpenAI CUA client.
+   */
+  store?: boolean;
 };
 
 export type ModelConfiguration =

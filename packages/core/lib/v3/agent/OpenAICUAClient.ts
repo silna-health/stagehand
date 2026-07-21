@@ -56,6 +56,12 @@ export class OpenAICUAClient extends AgentClient {
   private environment: string = "browser"; // "browser", "mac", "windows", or "ubuntu"
   private tools?: ToolSet;
   private safetyConfirmationHandler?: SafetyConfirmationHandler;
+  /**
+   * When `false`, run the Responses API statelessly for ZDR orgs: disable
+   * server-side storage, omit `previous_response_id`, and resend the full
+   * conversation each step. `undefined`/`true` keeps the default stateful path.
+   */
+  private store?: boolean;
 
   private get usesNewComputerTool(): boolean {
     return this.modelName.startsWith("gpt-5");
@@ -83,6 +89,11 @@ export class OpenAICUAClient extends AgentClient {
       typeof clientOptions.environment === "string"
     ) {
       this.environment = clientOptions.environment;
+    }
+
+    // ZDR orgs pass store:false to run the Responses API statelessly.
+    if (typeof clientOptions?.store === "boolean") {
+      this.store = clientOptions.store;
     }
 
     // Store client options for reference
@@ -158,6 +169,14 @@ export class OpenAICUAClient extends AgentClient {
     let inputItems: OpenAIRequestInputItem[] =
       await this.createInitialInputItems(instruction);
     let previousResponseId: string | undefined = undefined;
+
+    // Stateless (ZDR) mode: OpenAI does not store responses, so we resend the
+    // full conversation each step instead of relying on previous_response_id.
+    // Seed the running history with the initial input.
+    const isStateless = this.store === false;
+    const statelessHistory: OpenAIRequestInputItem[] = isStateless
+      ? [...inputItems]
+      : [];
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     let totalInferenceTime = 0;
@@ -174,7 +193,7 @@ export class OpenAICUAClient extends AgentClient {
         });
 
         const result = await this.executeStep(
-          inputItems,
+          isStateless ? statelessHistory : inputItems,
           previousResponseId,
           logger,
         );
@@ -193,16 +212,32 @@ export class OpenAICUAClient extends AgentClient {
 
         // Update the input items for the next step if we're continuing
         if (!completed) {
-          inputItems = result.nextInputItems;
           const contextNotes = this.drainContextNotes();
-          if (contextNotes.length > 0) {
-            inputItems = [
-              ...inputItems,
-              ...contextNotes.map((note) => ({
-                role: "user" as const,
-                content: note,
-              })),
-            ];
+          const contextNoteItems = contextNotes.map((note) => ({
+            role: "user" as const,
+            content: note,
+          }));
+
+          if (isStateless) {
+            // Append this step's model output, then the resulting action
+            // outputs, preserving order so each computer_call is followed by
+            // its computer_call_output and each reasoning item precedes the
+            // call it belongs to. Reasoning items carry encrypted_content so
+            // they replay correctly without server-side storage.
+            statelessHistory.push(
+              ...(result.output as unknown as OpenAIRequestInputItem[]),
+            );
+            statelessHistory.push(
+              ...(result.nextInputItems as OpenAIRequestInputItem[]),
+            );
+            if (contextNoteItems.length > 0) {
+              statelessHistory.push(...contextNoteItems);
+            }
+          } else {
+            inputItems = result.nextInputItems;
+            if (contextNoteItems.length > 0) {
+              inputItems = [...inputItems, ...contextNoteItems];
+            }
           }
         }
 
@@ -263,6 +298,8 @@ export class OpenAICUAClient extends AgentClient {
     actions: AgentAction[];
     message: string;
     completed: boolean;
+    /** Raw model output items (reasoning/computer_call/message) for this step. */
+    output: ResponseItem[];
     nextInputItems: ResponseInputItem[];
     responseId: string;
     usage: {
@@ -371,6 +408,7 @@ export class OpenAICUAClient extends AgentClient {
         actions: stepActions,
         message: message.trim(),
         completed,
+        output,
         nextInputItems,
         responseId,
         usage: usage,
@@ -511,6 +549,16 @@ export class OpenAICUAClient extends AgentClient {
         ...(this.usesNewComputerTool ? {} : { truncation: "auto" }),
       };
 
+      // Zero Data Retention (ZDR) mode: OpenAI cannot store responses, so
+      // `previous_response_id` has nothing to reference. Run statelessly —
+      // disable storage and ask for encrypted reasoning so reasoning items
+      // survive being resent as part of the full conversation `input`
+      // (accumulated in execute()).
+      if (this.store === false) {
+        requestParams.store = false;
+        requestParams.include = ["reasoning.encrypted_content"];
+      }
+
       // Add custom tools if available
       if (this.tools && Object.keys(this.tools).length > 0) {
         const customTools = Object.entries(this.tools).map(([name, tool]) => ({
@@ -550,8 +598,10 @@ export class OpenAICUAClient extends AgentClient {
         ];
       }
 
-      // Add previous_response_id if available
-      if (previousResponseId) {
+      // Add previous_response_id only in stateful mode. In stateless (ZDR)
+      // mode the full conversation is resent as `input`, so there is no
+      // stored response to reference.
+      if (this.store !== false && previousResponseId) {
         requestParams.previous_response_id = previousResponseId;
       }
 
