@@ -203,6 +203,17 @@ const ModelConfigBaseSchema = z
       description:
         "Custom headers sent with every request to the model provider",
     }),
+    store: z
+      .boolean()
+      .optional()
+      .meta({
+        description:
+          "OpenAI Responses API storage toggle for CUA agents. Defaults to true. " +
+          "Set to false for OpenAI orgs with Zero Data Retention (ZDR) enabled: " +
+          "the CUA client then runs statelessly (no previous_response_id, full " +
+          "conversation resent each step with encrypted reasoning).",
+        example: false,
+      }),
   })
   .strict();
 

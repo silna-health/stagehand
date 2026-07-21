@@ -338,6 +338,14 @@ components:
             type: string
           additionalProperties:
             type: string
+        store:
+          description: "OpenAI Responses API storage toggle for CUA agents. Defaults to
+            true. Set to false for OpenAI orgs with Zero Data Retention (ZDR)
+            enabled: the CUA client then runs statelessly (no
+            previous_response_id, full conversation resent each step with
+            encrypted reasoning)."
+          example: false
+          type: boolean
         provider:
           description: AI provider for the model (or provide a baseURL endpoint instead)
           example: openai
@@ -374,6 +382,14 @@ components:
             type: string
           additionalProperties:
             type: string
+        store:
+          description: "OpenAI Responses API storage toggle for CUA agents. Defaults to
+            true. Set to false for OpenAI orgs with Zero Data Retention (ZDR)
+            enabled: the CUA client then runs statelessly (no
+            previous_response_id, full conversation resent each step with
+            encrypted reasoning)."
+          example: false
+          type: boolean
         provider:
           description: Vertex AI model provider
           type: string
@@ -408,6 +424,14 @@ components:
             type: string
           additionalProperties:
             type: string
+        store:
+          description: "OpenAI Responses API storage toggle for CUA agents. Defaults to
+            true. Set to false for OpenAI orgs with Zero Data Retention (ZDR)
+            enabled: the CUA client then runs statelessly (no
+            previous_response_id, full conversation resent each step with
+            encrypted reasoning)."
+          example: false
+          type: boolean
         provider:
           description: Azure OpenAI model provider
           type: string
@@ -447,6 +471,14 @@ components:
             type: string
           additionalProperties:
             type: string
+        store:
+          description: "OpenAI Responses API storage toggle for CUA agents. Defaults to
+            true. Set to false for OpenAI orgs with Zero Data Retention (ZDR)
+            enabled: the CUA client then runs statelessly (no
+            previous_response_id, full conversation resent each step with
+            encrypted reasoning)."
+          example: false
+          type: boolean
         provider:
           description: Azure OpenAI model provider
           type: string
