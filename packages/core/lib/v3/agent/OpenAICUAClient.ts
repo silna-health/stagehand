@@ -417,7 +417,13 @@ export class OpenAICUAClient extends AgentClient {
           (item) => item.type === "message" || item.type === "reasoning",
         );
 
-      const stepMessage = message.trim() || reasoningNarration.trim();
+      // Surface both: GPT-5.x routinely emits a terse completion phrase
+      // ("Done.") in the message item while the actual narration lives in
+      // the reasoning summary — an either/or fallback would silently drop
+      // the detail whenever *any* message text is present, however terse.
+      const stepMessage = [reasoningNarration.trim(), message.trim()]
+        .filter(Boolean)
+        .join("\n\n");
 
       return {
         actions: stepActions,

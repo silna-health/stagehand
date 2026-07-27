@@ -270,7 +270,7 @@ describe("OpenAICUAClient reasoning summary", () => {
     );
   });
 
-  it("prefers the message item's text over the reasoning summary when both are present", async () => {
+  it("combines the reasoning summary with the message item's text when both are present", async () => {
     const { client } = createClientWithMockedOutput([
       {
         type: "reasoning",
@@ -299,6 +299,51 @@ describe("OpenAICUAClient reasoning summary", () => {
       vi.fn(),
     );
 
-    expect(result.message).toBe("Clicked Sign In.");
+    expect(result.message).toBe(
+      "Thinking about next step.\n\nClicked Sign In.",
+    );
+  });
+
+  it("surfaces the reasoning summary even when the model's message is a terse completion phrase", async () => {
+    // Reproduces the reported regression: GPT-5.x often emits a bare "Done."
+    // message alongside a detailed reasoning summary. An either/or fallback
+    // (message || reasoning) would pick "Done." and drop the detail, since
+    // "Done." is non-empty.
+    const { client } = createClientWithMockedOutput([
+      {
+        type: "reasoning",
+        id: "reasoning-1",
+        summary: [
+          {
+            type: "summary_text",
+            text: "Clicked the Sign In button; now on the 2-Step Authentication screen.",
+          },
+        ],
+      },
+      {
+        type: "message",
+        content: [{ type: "output_text", text: "Done." }],
+      },
+    ]);
+
+    const executeStep = (
+      client as unknown as {
+        executeStep: (
+          inputItems: unknown[],
+          previousResponseId: string | undefined,
+          logger: (message: unknown) => void,
+        ) => Promise<{ message: string }>;
+      }
+    ).executeStep.bind(client);
+
+    const result = await executeStep(
+      [{ role: "user", content: "hi" }],
+      undefined,
+      vi.fn(),
+    );
+
+    expect(result.message).toBe(
+      "Clicked the Sign In button; now on the 2-Step Authentication screen.\n\nDone.",
+    );
   });
 });
