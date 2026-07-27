@@ -871,10 +871,30 @@ export function extractLlmCuaResponseSummary(output: unknown): string {
           text?: string;
           name?: string;
           functionCall?: { name?: string };
+          // OpenAI Responses API shapes: message content and reasoning
+          // summary text are nested rather than flat, unlike Anthropic's
+          // `{type:"text", text}` / `{type:"tool_use", name}` blocks.
+          content?: Array<{ type?: string; text?: string }>;
+          summary?: Array<{ type?: string; text?: string }>;
         };
         if (i.text) return i.text;
         if (i.functionCall?.name) return i.functionCall.name;
         if (i.type === "tool_use" && i.name) return i.name;
+        if (i.type === "message" && Array.isArray(i.content)) {
+          const text = i.content
+            .filter((c) => c?.type === "output_text" && c.text)
+            .map((c) => c.text)
+            .join(" ");
+          if (text) return text;
+        }
+        if (i.type === "reasoning" && Array.isArray(i.summary)) {
+          const text = i.summary
+            .filter((s) => s?.text)
+            .map((s) => s.text)
+            .join(" ");
+          if (text) return text;
+        }
+        if (i.type === "function_call" && i.name) return i.name;
         return i.type ?? "[item]";
       })
       .join(" ");

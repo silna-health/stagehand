@@ -193,3 +193,112 @@ describe("OpenAICUAClient store / ZDR handling", () => {
     expect(params.include).toBeUndefined();
   });
 });
+
+describe("OpenAICUAClient reasoning summary", () => {
+  function createClientWithMockedOutput(output: unknown[]) {
+    const client = new OpenAICUAClient("openai", "gpt-5.6-luna", undefined, {
+      apiKey: "test-key",
+    });
+
+    const createMock = vi.fn().mockResolvedValue({
+      id: "resp_new",
+      output,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+
+    (
+      client as unknown as {
+        client: { responses: { create: typeof createMock } };
+      }
+    ).client = { responses: { create: createMock } };
+
+    return { client, createMock };
+  }
+
+  it("requests reasoning.summary for gpt-5.x CUA models", async () => {
+    const { client, createMock } = createClientWithMockedOutput([
+      { type: "message", content: [{ type: "output_text", text: "done" }] },
+    ]);
+
+    const getAction = (
+      client as unknown as {
+        getAction: (
+          inputItems: unknown[],
+          previousResponseId?: string,
+        ) => Promise<unknown>;
+      }
+    ).getAction.bind(client);
+
+    await getAction([{ role: "user", content: "hi" }]);
+
+    const params = createMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(params.reasoning).toEqual({ summary: "auto" });
+  });
+
+  it("falls back to the reasoning summary when the model emits no message item", async () => {
+    const { client } = createClientWithMockedOutput([
+      {
+        type: "reasoning",
+        id: "reasoning-1",
+        summary: [
+          {
+            type: "summary_text",
+            text: "Clicked the Sign In button; now on the 2-Step Authentication screen.",
+          },
+        ],
+      },
+    ]);
+
+    const executeStep = (
+      client as unknown as {
+        executeStep: (
+          inputItems: unknown[],
+          previousResponseId: string | undefined,
+          logger: (message: unknown) => void,
+        ) => Promise<{ message: string }>;
+      }
+    ).executeStep.bind(client);
+
+    const result = await executeStep(
+      [{ role: "user", content: "hi" }],
+      undefined,
+      vi.fn(),
+    );
+
+    expect(result.message).toBe(
+      "Clicked the Sign In button; now on the 2-Step Authentication screen.",
+    );
+  });
+
+  it("prefers the message item's text over the reasoning summary when both are present", async () => {
+    const { client } = createClientWithMockedOutput([
+      {
+        type: "reasoning",
+        id: "reasoning-1",
+        summary: [{ type: "summary_text", text: "Thinking about next step." }],
+      },
+      {
+        type: "message",
+        content: [{ type: "output_text", text: "Clicked Sign In." }],
+      },
+    ]);
+
+    const executeStep = (
+      client as unknown as {
+        executeStep: (
+          inputItems: unknown[],
+          previousResponseId: string | undefined,
+          logger: (message: unknown) => void,
+        ) => Promise<{ message: string }>;
+      }
+    ).executeStep.bind(client);
+
+    const result = await executeStep(
+      [{ role: "user", content: "hi" }],
+      undefined,
+      vi.fn(),
+    );
+
+    expect(result.message).toBe("Clicked Sign In.");
+  });
+});
