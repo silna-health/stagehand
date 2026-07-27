@@ -630,6 +630,11 @@ export interface FunctionCallItem extends ResponseItem {
   arguments: string;
 }
 
+export interface ReasoningItem extends ResponseItem {
+  type: "reasoning";
+  summary: Array<{ type: string; text: string }>;
+}
+
 export type ResponseInputItem =
   | { role: string; content: string }
   | {

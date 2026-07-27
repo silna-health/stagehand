@@ -14,6 +14,7 @@ import {
   ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
+  ReasoningItem,
   SafetyCheck,
   SafetyConfirmationHandler,
   ScreenshotProviderResult,
@@ -319,13 +320,22 @@ export class OpenAICUAClient extends AgentClient {
         inference_time_ms: result.usage.inference_time_ms,
       };
 
-      // Add any reasoning items to our map
+      // Add any reasoning items to our map, and collect their human-readable
+      // summary text (requested via `reasoning.summary` in getAction) as a
+      // fallback narration for steps where the model doesn't emit a
+      // separate `message` item — e.g. GPT-5.x CUA models routinely finish
+      // a computer_call turn with no message item at all.
+      let reasoningNarration = "";
       for (const item of output) {
-        if (item.type === "reasoning") {
+        if (item.type === "reasoning" && this.isReasoningItem(item)) {
           this.reasoningItems.set(item.id, item);
+          const summaryText = this.extractReasoningSummaryText(item);
+          if (summaryText) {
+            reasoningNarration += summaryText + "\n";
+          }
           logger({
             category: "agent",
-            message: `Reasoning: ${String(item.content || "")}`,
+            message: `Reasoning: ${summaryText}`,
             level: 1,
           });
         }
@@ -370,7 +380,10 @@ export class OpenAICUAClient extends AgentClient {
         }
       }
 
-      // Extract message text
+      // Extract message text, falling back to the reasoning summary when
+      // the model produced no `message` item for this step (common on
+      // GPT-5.x CUA models, which don't reliably narrate inline the way
+      // Claude does).
       let message = "";
       for (const item of output) {
         if (item.type === "message") {
@@ -404,9 +417,11 @@ export class OpenAICUAClient extends AgentClient {
           (item) => item.type === "message" || item.type === "reasoning",
         );
 
+      const stepMessage = message.trim() || reasoningNarration.trim();
+
       return {
         actions: stepActions,
-        message: message.trim(),
+        message: stepMessage,
         completed,
         output,
         nextInputItems,
@@ -483,6 +498,17 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
+  private isReasoningItem(item: ResponseItem): item is ReasoningItem {
+    return item.type === "reasoning" && Array.isArray(item.summary);
+  }
+
+  private extractReasoningSummaryText(item: ReasoningItem): string {
+    return item.summary
+      .filter((part) => typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n");
+  }
+
   private async createInitialInputItems(
     instruction: string,
   ): Promise<OpenAIRequestInputItem[]> {
@@ -546,7 +572,14 @@ export class OpenAICUAClient extends AgentClient {
         model: this.modelName,
         tools: [computerTool],
         input: inputItems,
-        ...(this.usesNewComputerTool ? {} : { truncation: "auto" }),
+        ...(this.usesNewComputerTool
+          ? // GPT-5.x CUA models are reasoning models: without an explicit
+            // `reasoning.summary` request, the API returns reasoning items
+            // with an empty `summary` array, so we'd have no narration to
+            // surface for `message`/logs. The older `computer_use_preview`
+            // line doesn't support this field.
+            { reasoning: { summary: "auto" } }
+          : { truncation: "auto" }),
       };
 
       // Zero Data Retention (ZDR) mode: OpenAI cannot store responses, so
