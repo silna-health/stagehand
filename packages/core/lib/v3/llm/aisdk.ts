@@ -385,6 +385,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             : undefined,
         temperature,
         allowSystemInMessages: true,
+        ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {}),
       });
     } catch (err) {
       // Log error response to maintain request/response pairing

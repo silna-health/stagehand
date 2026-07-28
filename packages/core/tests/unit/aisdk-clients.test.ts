@@ -102,6 +102,117 @@ describe("AISdkClient structured output provider options", () => {
   });
 });
 
+describe("AISdkClient tool-calling provider options", () => {
+  beforeEach(() => {
+    mockGenerateText.mockReset();
+    mockGenerateText.mockResolvedValue({
+      text: "done",
+      toolCalls: [],
+      finishReason: "stop",
+      usage: {
+        inputTokens: 1,
+        outputTokens: 2,
+        reasoningTokens: 0,
+        cachedInputTokens: 0,
+        totalTokens: 3,
+      },
+    } as never);
+  });
+
+  // Regression test: GPT-5.x sub-models default reasoningEffort to "none"
+  // for structured-output (generateObject) calls, but that same default was
+  // never threaded into the tool-calling (generateText) call — so act/observe
+  // and the agent's tool loop sent no reasoning_effort override at all,
+  // which some gateways (e.g. litellm) reject for GPT-5.x + function tools
+  // on /v1/chat/completions.
+  it("defaults reasoningEffort to 'none' for gpt-5.x tool-calling calls", async () => {
+    const client = new AISdkClient({
+      model: createModel("openai/gpt-5.6-luna"),
+      logger: vi.fn(),
+    });
+
+    await client.createChatCompletion({
+      options: {
+        messages: [{ role: "user", content: "hello" }],
+        tools: [
+          {
+            type: "function" as const,
+            name: "click",
+            description: "click an element",
+            parameters: {
+              type: "object",
+              properties: { selector: { type: "string" } },
+            },
+          },
+        ],
+      },
+      logger: vi.fn(),
+    });
+
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: expect.objectContaining({
+          openai: expect.objectContaining({ reasoningEffort: "none" }),
+        }),
+      }),
+    );
+  });
+
+  it("respects a user-configured reasoningEffort override for tool-calling calls", async () => {
+    const client = new AISdkClient({
+      model: createModel("openai/gpt-5.6-luna"),
+      logger: vi.fn(),
+      clientOptions: { reasoningEffort: "low" },
+    });
+
+    await client.createChatCompletion({
+      options: {
+        messages: [{ role: "user", content: "hello" }],
+        tools: [
+          {
+            type: "function" as const,
+            name: "click",
+            description: "click an element",
+            parameters: {
+              type: "object",
+              properties: { selector: { type: "string" } },
+            },
+          },
+        ],
+      },
+      logger: vi.fn(),
+    });
+
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: expect.objectContaining({
+          openai: expect.objectContaining({ reasoningEffort: "low" }),
+        }),
+      }),
+    );
+  });
+
+  it("does not set reasoningEffort for non-GPT-5.x tool-calling calls", async () => {
+    const client = new AISdkClient({
+      model: createModel("openai/gpt-4.1"),
+      logger: vi.fn(),
+    });
+
+    await client.createChatCompletion({
+      options: {
+        messages: [{ role: "user", content: "hello" }],
+      },
+      logger: vi.fn(),
+    });
+
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: { openai: { strictJsonSchema: true } },
+      }),
+    );
+  });
+});
+
 describe("AISdkClient allowSystemInMessages", () => {
   beforeEach(() => {
     mockGenerateObject.mockReset();
