@@ -77,6 +77,7 @@ describe("LLM and Agents public API types", () => {
       "openai/gpt-5.6-terra",
       "openai/gpt-5.6-luna",
       "openai/gpt-5.6-sol",
+      "openai/gpt-6-luna",
       "anthropic/claude-opus-4-5-20251101",
       "anthropic/claude-opus-4-6",
       "anthropic/claude-opus-4-8",

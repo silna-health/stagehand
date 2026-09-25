@@ -21,6 +21,7 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "gpt-5.6-terra": "openai",
   "gpt-5.6-luna": "openai",
   "gpt-5.6-sol": "openai",
+  "gpt-6-luna": "openai",
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-sonnet-4-20250514": "anthropic",

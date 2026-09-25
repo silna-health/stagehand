@@ -472,6 +472,7 @@ export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.6-terra",
   "openai/gpt-5.6-luna",
   "openai/gpt-5.6-sol",
+  "openai/gpt-6-luna",
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-opus-4-5-20251101",
