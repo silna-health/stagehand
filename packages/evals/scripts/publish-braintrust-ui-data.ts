@@ -182,7 +182,7 @@ const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
   ["gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
   ["openai/gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
   ["gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
-  // GPT-6 Luna pricing (2026-09); cache reads at 90% off.
+  // GPT-6 Luna per OpenAI pricing (2026-09); cache reads at 90% off.
   ["openai/gpt-6-luna", { input: 0.1, cachedInput: 0.01, output: 0.5 }],
   ["gpt-6-luna", { input: 0.1, cachedInput: 0.01, output: 0.5 }],
   // xAI pricing per docs.x.ai/developers/models (2026-07).
