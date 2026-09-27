@@ -25,8 +25,13 @@ async function ping() {
       `Ping failed (${response.status}): ${JSON.stringify(body)}`,
     );
   }
+  const text = body.output
+    ?.flatMap((item: { content?: { text?: string }[] }) => item.content ?? [])
+    .map((part: { text?: string }) => part.text)
+    .filter(Boolean)
+    .join("");
   console.log(
-    `${chalk.green("✓")} Ping ok — model=${body.model} output=${JSON.stringify(body.output_text ?? body.output)}`,
+    `${chalk.green("✓")} Ping ok — model=${body.model} output=${JSON.stringify(text)}`,
   );
 }
 
