@@ -60,3 +60,34 @@ export function mapKeyToPlaywright(key: string): string {
   const upperKey = key.toUpperCase();
   return KEY_MAP[upperKey] || key;
 }
+
+/**
+ * Browser history shortcuts, as sorted, lowercased Playwright key chords.
+ * Chrome handles these in its UI layer, so dispatching them to the page as key
+ * events never navigates.
+ */
+const HISTORY_SHORTCUTS: Record<string, "back" | "forward"> = {
+  "alt+arrowleft": "back",
+  "[+meta": "back",
+  browserback: "back",
+  "alt+arrowright": "forward",
+  "]+meta": "forward",
+  browserforward: "forward",
+};
+
+/**
+ * Returns the history navigation a key chord would trigger in a real browser
+ * ("back" / "forward"), or undefined for any other chord.
+ * @param chord A "+"-delimited key combination, e.g. "Alt+ArrowLeft" or "alt+left"
+ */
+export function getHistoryShortcut(
+  chord: string,
+): "back" | "forward" | undefined {
+  const normalized = chord
+    .split("+")
+    .filter(Boolean)
+    .map((key) => mapKeyToPlaywright(key).toLowerCase())
+    .sort()
+    .join("+");
+  return HISTORY_SHORTCUTS[normalized];
+}

@@ -17,6 +17,8 @@ import type { AgentAction } from "../../lib/v3/types/public/agent.js";
 describe("V3CuaAgentHandler keypress chord handling", () => {
   let handler: V3CuaAgentHandler;
   let keyPress: ReturnType<typeof vi.fn>;
+  let goBack: ReturnType<typeof vi.fn>;
+  let goForward: ReturnType<typeof vi.fn>;
 
   // executeAction is private; expose it through a typed accessor for the test.
   const execute = (action: AgentAction) =>
@@ -28,8 +30,12 @@ describe("V3CuaAgentHandler keypress chord handling", () => {
 
   beforeEach(() => {
     keyPress = vi.fn().mockResolvedValue(undefined);
+    goBack = vi.fn().mockResolvedValue(undefined);
+    goForward = vi.fn().mockResolvedValue(undefined);
     const mockPage = {
       keyPress,
+      goBack,
+      goForward,
       url: () => "https://example.com",
     };
     const mockV3 = {
@@ -78,4 +84,40 @@ describe("V3CuaAgentHandler keypress chord handling", () => {
 
     expect(keyPress).not.toHaveBeenCalled();
   });
+
+  // Chrome handles history shortcuts in its UI, not the page, so a synthesized
+  // key event never navigates. In a live gpt-6-luna run the model wasted 8
+  // steps pressing ALT+LEFT (and variants) before trying a mouse back click.
+  it.each([
+    [["ALT", "LEFT"]],
+    [["ALT", "ARROWLEFT"]],
+    [["CMD", "["]],
+    [["alt+left"]],
+    [["BrowserBack"]],
+  ])("navigates back for history shortcut %j", async (keys) => {
+    await execute({ type: "keypress", keys } as AgentAction);
+
+    expect(goBack).toHaveBeenCalledTimes(1);
+    expect(keyPress).not.toHaveBeenCalled();
+  });
+
+  it.each([[["ALT", "RIGHT"]], [["META", "]"]], [["BrowserForward"]]])(
+    "navigates forward for history shortcut %j",
+    async (keys) => {
+      await execute({ type: "keypress", keys } as AgentAction);
+
+      expect(goForward).toHaveBeenCalledTimes(1);
+      expect(keyPress).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([[["LEFT"]], [["BACKSPACE"]], [["CTRL", "["]], [["SHIFT", "LEFT"]]])(
+    "still presses non-history chord %j as keys",
+    async (keys) => {
+      await execute({ type: "keypress", keys } as AgentAction);
+
+      expect(keyPress).toHaveBeenCalledTimes(1);
+      expect(goBack).not.toHaveBeenCalled();
+    },
+  );
 });
