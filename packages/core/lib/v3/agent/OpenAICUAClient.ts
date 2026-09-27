@@ -65,7 +65,9 @@ export class OpenAICUAClient extends AgentClient {
   private store?: boolean;
 
   private get usesNewComputerTool(): boolean {
-    return this.modelName.startsWith("gpt-5");
+    // Only the legacy `computer-use-preview` line takes the old tool; every
+    // GPT CUA model since GPT-5 (e.g. gpt-5.x, gpt-6-luna) rejects it.
+    return !this.modelName.startsWith("computer-use-preview");
   }
 
   constructor(
