@@ -3,7 +3,8 @@
  *
  *   pnpm --filter @browserbasehq/stagehand example gpt6-luna-cua-example
  *
- * Set PING_ONLY=true to skip the browser run.
+ * Set PING_ONLY=true to skip the browser run. Set STORE=false for Zero Data
+ * Retention (ZDR) orgs, which reject `previous_response_id`.
  */
 import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
@@ -55,6 +56,7 @@ async function main() {
       model: {
         modelName: `openai/${MODEL}`,
         apiKey: process.env.OPENAI_API_KEY,
+        ...(process.env.STORE === "false" ? { store: false } : {}),
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
       Do not ask follow up questions, the user will trust your judgement.
