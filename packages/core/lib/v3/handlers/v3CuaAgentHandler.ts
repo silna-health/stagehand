@@ -5,7 +5,10 @@ import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
-import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
+import {
+  getHistoryShortcut,
+  mapKeyToPlaywright,
+} from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
 import {
   captureProbeEvidence,
@@ -469,6 +472,13 @@ export class V3CuaAgentHandler {
           const mapped = keyList
             .map((rawKey) => mapKeyToPlaywright(String(rawKey ?? "")))
             .join("+");
+          // History shortcuts (Alt+Left, Cmd+[, ...) are handled by the browser
+          // UI, not the page, so a synthesized key event never navigates.
+          // Route them to real history navigation instead.
+          const historyAction = getHistoryShortcut(mapped);
+          if (historyAction) {
+            return this.executeAction({ type: historyAction } as AgentAction);
+          }
           await page.keyPress(mapped);
           if (recording) {
             this.recordCuaActStep(
