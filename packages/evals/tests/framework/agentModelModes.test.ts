@@ -7,6 +7,7 @@ describe("agentModelModes", () => {
     "openai/gpt-5.6-terra",
     "openai/gpt-5.6-luna",
     "openai/gpt-5.6-sol",
+    "openai/gpt-6-luna",
   ])("defaults %s to hybrid mode", (modelName) => {
     expect(inferDefaultStagehandAgentMode(modelName)).toBe("hybrid");
   });

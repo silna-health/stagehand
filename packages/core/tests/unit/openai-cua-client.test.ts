@@ -194,6 +194,52 @@ describe("OpenAICUAClient store / ZDR handling", () => {
   });
 });
 
+describe("OpenAICUAClient computer tool selection", () => {
+  async function getRequestParams(modelName: string) {
+    const client = new OpenAICUAClient("openai", modelName, undefined, {
+      apiKey: "test-key",
+    });
+
+    const createMock = vi.fn().mockResolvedValue({
+      id: "resp_new",
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "done" }] },
+      ],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+
+    (
+      client as unknown as {
+        client: { responses: { create: typeof createMock } };
+      }
+    ).client = { responses: { create: createMock } };
+
+    await (
+      client as unknown as {
+        getAction: (inputItems: unknown[]) => Promise<unknown>;
+      }
+    ).getAction([{ role: "user", content: "hi" }]);
+
+    return createMock.mock.calls[0][0] as Record<string, unknown>;
+  }
+
+  it.each(["gpt-5.6-luna", "gpt-6-luna"])(
+    "sends the GA computer tool for %s",
+    async (modelName) => {
+      const params = await getRequestParams(modelName);
+      expect(params.tools).toEqual([{ type: "computer" }]);
+      expect(params.reasoning).toEqual({ summary: "auto" });
+    },
+  );
+
+  it("sends computer_use_preview for legacy computer-use-preview models", async () => {
+    const params = await getRequestParams("computer-use-preview-2025-03-11");
+    const [tool] = params.tools as Array<Record<string, unknown>>;
+    expect(tool.type).toBe("computer_use_preview");
+    expect(params.truncation).toBe("auto");
+  });
+});
+
 describe("OpenAICUAClient reasoning summary", () => {
   function createClientWithMockedOutput(output: unknown[]) {
     const client = new OpenAICUAClient("openai", "gpt-5.6-luna", undefined, {
