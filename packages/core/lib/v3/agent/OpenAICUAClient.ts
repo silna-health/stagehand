@@ -1,3 +1,4 @@
+import { AgentActionInterruptedError } from "./utils/actionCheckpoint.js";
 import OpenAI from "openai";
 import type {
   EasyInputMessage,
@@ -267,6 +268,7 @@ export class OpenAICUAClient extends AgentClient {
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -437,6 +439,7 @@ export class OpenAICUAClient extends AgentClient {
         usage: usage,
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -687,6 +690,7 @@ export class OpenAICUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       console.error("Error getting action from OpenAI:", error);
       throw error;
     }
@@ -783,6 +787,7 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof AgentActionInterruptedError) throw error;
           if (error instanceof StagehandClosedError) {
             throw error;
           }
@@ -921,6 +926,8 @@ export class OpenAICUAClient extends AgentClient {
                 level: 1,
               });
             } catch (toolError) {
+              if (toolError instanceof AgentActionInterruptedError)
+                throw toolError;
               const errorMessage =
                 toolError instanceof Error
                   ? toolError.message
@@ -944,6 +951,7 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof AgentActionInterruptedError) throw error;
           if (error instanceof StagehandClosedError) {
             throw error;
           }
@@ -1030,6 +1038,7 @@ export class OpenAICUAClient extends AgentClient {
         params: args,
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       console.error("Error parsing function call arguments:", error);
       return null;
     }
@@ -1053,6 +1062,7 @@ export class OpenAICUAClient extends AgentClient {
       try {
         return await this.screenshotProvider();
       } catch (error) {
+        if (error instanceof AgentActionInterruptedError) throw error;
         console.error("Error capturing screenshot:", error);
         throw error;
       }

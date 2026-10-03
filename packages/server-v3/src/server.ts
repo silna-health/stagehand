@@ -69,6 +69,8 @@ const app = fastify({
   return503OnClosing: false,
 });
 
+app.get("/capabilities", async () => ({ actionCheckpoints: 1 }));
+
 export const logger = app.log;
 
 // Allow requests with `Content-Type: application/json` and an empty body (0 bytes).

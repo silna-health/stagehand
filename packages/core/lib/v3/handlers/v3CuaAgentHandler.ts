@@ -3,6 +3,10 @@ import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
+import {
+  AgentActionInterruptedError,
+  checkAgentAction,
+} from "../agent/utils/actionCheckpoint.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
 import {
@@ -20,6 +24,7 @@ import {
   ActionExecutionResult,
   AgentAction,
   AgentExecuteOptions,
+  AgentExecuteCallbacks,
   AgentHandlerOptions,
   AgentResult,
   SafetyConfirmationHandler,
@@ -52,6 +57,8 @@ export class V3CuaAgentHandler {
   private currentInstruction = "";
   private lastAgentScreenshotUrl?: string;
   private evidenceCallback?: AgentEvidenceCallback;
+  private actionCheckpoint?: AgentExecuteCallbacks["onActionCheckpoint"];
+  private executedActions: AgentAction[] = [];
 
   constructor(
     v3: V3,
@@ -158,6 +165,10 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
+        await checkAgentAction(this.actionCheckpoint, {
+          phase: "before_action",
+          action,
+        });
         if (shouldLog) {
           executionResult = await FlowLogger.runWithLogging(
             {
@@ -175,6 +186,7 @@ export class V3CuaAgentHandler {
         }
 
         action.timestamp = Date.now();
+        if (shouldLog) this.executedActions.push({ ...action });
         if (shouldLog && this.evidenceCallback) {
           await this.emitCuaActionStep(
             action,
@@ -184,6 +196,7 @@ export class V3CuaAgentHandler {
 
         await new Promise((r) => setTimeout(r, waitBetween));
       } catch (error) {
+        if (error instanceof AgentActionInterruptedError) throw error;
         const msg = (error as Error)?.message ?? String(error);
         this.logger({
           category: "agent",
@@ -216,6 +229,10 @@ export class V3CuaAgentHandler {
         }
         throw error;
       }
+      await checkAgentAction(this.actionCheckpoint, {
+        phase: "after_action",
+        action,
+      });
     });
 
     void this.updateClientViewport();
@@ -245,6 +262,8 @@ export class V3CuaAgentHandler {
       this.logger,
     );
     this.lastAgentScreenshotUrl = undefined;
+    this.actionCheckpoint = options.callbacks?.onActionCheckpoint;
+    this.executedActions = [];
 
     this.highlightCursor = options.highlightCursor !== false;
     this.currentInstruction = options.instruction;
@@ -265,21 +284,20 @@ export class V3CuaAgentHandler {
     if (this.v3.isCaptchaAutoSolveEnabled) {
       this.captchaSolver = new CaptchaSolver();
       this.captchaSolver.init(() => this.v3.context.awaitActivePage());
-
-      // Block the CUA agent loop before each step while a captcha is being solved
-      this.agentClient.setPreStepHook(async () => {
-        if (this.captchaSolver?.isSolving()) {
-          this.logger({
-            category: "agent",
-            message:
-              "Captcha detected — waiting for Browserbase to solve it before continuing",
-            level: 1,
-          });
-        }
-        await this.captchaSolver?.waitIfSolving();
-        this.handleCaptchaSolveResult(this.captchaSolver?.consumeSolveResult());
-      });
     }
+    this.agentClient.setPreStepHook(async () => {
+      await checkAgentAction(this.actionCheckpoint, { phase: "before_step" });
+      if (this.captchaSolver?.isSolving()) {
+        this.logger({
+          category: "agent",
+          message:
+            "Captcha detected — waiting for Browserbase to solve it before continuing",
+          level: 1,
+        });
+      }
+      await this.captchaSolver?.waitIfSolving();
+      this.handleCaptchaSolveResult(this.captchaSolver?.consumeSolveResult());
+    });
 
     if (this.highlightCursor) {
       try {
@@ -320,8 +338,18 @@ export class V3CuaAgentHandler {
           observation,
         });
       }
+    } catch (error) {
+      if (!(error instanceof AgentActionInterruptedError)) throw error;
+      result = {
+        success: false,
+        completed: false,
+        message: error.message,
+        actions: this.executedActions,
+        metadata: { interrupted: true, interruptionReason: error.message },
+      };
     } finally {
       this.evidenceCallback = undefined;
+      this.actionCheckpoint = undefined;
       this.captchaSolver?.dispose();
       this.captchaSolver = null;
     }
