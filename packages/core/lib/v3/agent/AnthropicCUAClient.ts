@@ -1,3 +1,4 @@
+import { AgentActionInterruptedError } from "./utils/actionCheckpoint.js";
 import {
   AgentAction,
   AgentResult,
@@ -214,6 +215,7 @@ export class AnthropicCUAClient extends AgentClient {
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -343,6 +345,7 @@ export class AnthropicCUAClient extends AgentClient {
             });
             await this.actionHandler(action);
           } catch (error) {
+            if (error instanceof AgentActionInterruptedError) throw error;
             if (error instanceof StagehandClosedError) {
               throw error;
             }
@@ -403,6 +406,7 @@ export class AnthropicCUAClient extends AgentClient {
         usage: usage,
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -625,6 +629,7 @@ export class AnthropicCUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       console.error("Error getting action from Anthropic:", error);
       throw error;
     }
@@ -734,6 +739,8 @@ export class AnthropicCUAClient extends AgentClient {
                 level: 1,
               });
             } catch (toolError) {
+              if (toolError instanceof AgentActionInterruptedError)
+                throw toolError;
               const errorMessage =
                 toolError instanceof Error
                   ? toolError.message
@@ -766,6 +773,7 @@ export class AnthropicCUAClient extends AgentClient {
           });
         }
       } catch (error) {
+        if (error instanceof AgentActionInterruptedError) throw error;
         const errorMessage =
           error instanceof Error ? error.message : String(error);
 
@@ -1034,6 +1042,7 @@ export class AnthropicCUAClient extends AgentClient {
       console.warn(`Unknown tool name: ${name}`);
       return null;
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       console.error("Error converting tool use to action:", error);
       return null;
     }
@@ -1057,6 +1066,7 @@ export class AnthropicCUAClient extends AgentClient {
       try {
         return await this.screenshotProvider();
       } catch (error) {
+        if (error instanceof AgentActionInterruptedError) throw error;
         console.error("Error capturing screenshot:", error);
         throw error;
       }

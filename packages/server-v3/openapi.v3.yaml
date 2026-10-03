@@ -1151,6 +1151,12 @@ components:
     AgentExecuteOptions:
       type: object
       properties:
+        actionCheckpointUrl:
+          description: Loopback HTTP endpoint checked before and after each CUA action.
+            Returning proceed:false interrupts execution with its completed
+            action history.
+          type: string
+          format: uri
         instruction:
           description: Natural language instruction for the agent
           example: Log in with username 'demo' and password 'test123', then navigate to
@@ -2065,6 +2071,12 @@ components:
     AgentExecuteOptionsOutput:
       type: object
       properties:
+        actionCheckpointUrl:
+          description: Loopback HTTP endpoint checked before and after each CUA action.
+            Returning proceed:false interrupts execution with its completed
+            action history.
+          type: string
+          format: uri
         instruction:
           description: Natural language instruction for the agent
           example: Log in with username 'demo' and password 'test123', then navigate to

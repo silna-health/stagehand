@@ -172,6 +172,10 @@ type SafetyConfirmationCallbackNotAvailable =
  * Callbacks specific to the non-streaming execute method.
  */
 export interface AgentExecuteCallbacks extends AgentCallbacks {
+  onActionCheckpoint?: (event: {
+    phase: "before_step" | "before_action" | "after_action";
+    action?: AgentAction;
+  }) => Promise<{ proceed: boolean; reason?: string }>;
   /**
    * Callback called when each step (LLM call) is finished.
    */

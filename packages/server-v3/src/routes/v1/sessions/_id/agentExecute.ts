@@ -7,6 +7,7 @@ import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
+import { createActionCheckpoint } from "../../../../lib/actionCheckpoint.js";
 
 const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -62,11 +63,26 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
                 : undefined,
         };
 
-        const { instruction, ...restExecuteOptions } = executeOptions;
+        const { instruction, actionCheckpointUrl, ...restExecuteOptions } =
+          executeOptions;
+        if (actionCheckpointUrl && normalizedAgentConfig.mode !== "cua") {
+          throw new AppError(
+            "Action checkpoints require CUA mode",
+            StatusCodes.BAD_REQUEST,
+          );
+        }
         const fullExecuteOptions = {
           instruction,
           ...restExecuteOptions,
           page,
+          ...(actionCheckpointUrl
+            ? {
+                callbacks: {
+                  onActionCheckpoint:
+                    createActionCheckpoint(actionCheckpointUrl),
+                },
+              }
+            : {}),
         };
         let result;
         try {
