@@ -1,5 +1,15 @@
 # @browserbasehq/stagehand
 
+## 3.8.0
+
+### Minor Changes
+
+- [`436d0e8`](https://github.com/browserbase/stagehand/commit/436d0e801fbffbb4fc7a3d6051969b2e00bbc6be) Thanks [@viviana-sudo](https://github.com/viviana-sudo)! - Add Vertex AI support for Google Computer Use Agents. The `vertex` provider (explicit, or a `vertex/` model prefix) routes Google CUA models through Vertex AI, initializing `@google/genai` in Vertex mode with service-account, express-mode API key, or ambient ADC auth. `VertexModelConfigObject.auth` and `.providerOptions` are now individually optional, since express keys and ADC need neither.
+
+### Patch Changes
+
+- [#2359](https://github.com/browserbase/stagehand/pull/2359) [`2cd1edf`](https://github.com/browserbase/stagehand/commit/2cd1edf49e5b726d817805e3258f2fa9b7fa17b0) Thanks [@shrey150](https://github.com/shrey150)! - Remove the noisy AI SDK "system message in messages" warning from `act()`, `extract()`, and `observe()` (including when the agent's own tools call them internally).
+
 ## 3.7.0
 
 ### Minor Changes
