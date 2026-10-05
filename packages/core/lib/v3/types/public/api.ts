@@ -941,6 +941,10 @@ export const AgentCacheEntrySchema = z
 
 export const AgentExecuteOptionsSchema = z
   .object({
+    actionCheckpointUrl: z.url().optional().meta({
+      description:
+        "Loopback HTTP endpoint checked before and after each CUA action. Returning proceed:false interrupts execution with its completed action history.",
+    }),
     instruction: z.string().meta({
       description: "Natural language instruction for the agent",
       example:

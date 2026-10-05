@@ -624,3 +624,134 @@ describe("v3 cua handler screenshot behavior", () => {
     });
   });
 });
+
+describe("CUA submission action checkpoints", () => {
+  beforeEach(() => {
+    fakeCuaClient = new FakeCuaClient();
+  });
+
+  function handler() {
+    const instance = new V3CuaAgentHandler(
+      {
+        context: { awaitActivePage: async () => new MockPage() },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      () => {},
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+    const action = vi
+      .spyOn(
+        instance as unknown as {
+          executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+        },
+        "executeAction",
+      )
+      .mockResolvedValue({ success: true });
+    return { instance, action };
+  }
+
+  it("stops a batch immediately after Submit and returns only executed actions", async () => {
+    const { instance, action } = handler();
+    let held = false;
+    action.mockImplementation(async () => {
+      held = true;
+      return { success: true };
+    });
+    const nextModelTurn = vi.fn();
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.preStepHook?.();
+      await fakeCuaClient.actionHandler?.({
+        type: "click",
+        x: 10,
+        y: 20,
+        button: "left",
+      });
+      await fakeCuaClient.actionHandler?.({
+        type: "click",
+        x: 30,
+        y: 40,
+        button: "left",
+      });
+      nextModelTurn();
+      return { success: true, completed: true, actions: [], message: "done" };
+    });
+
+    const result = await instance.execute({
+      instruction: "Submit then continue",
+      highlightCursor: false,
+      callbacks: {
+        onActionCheckpoint: async () => ({
+          proceed: !held,
+          reason: "SUBMISSION_GUARD",
+        }),
+      },
+    });
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(nextModelTurn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      completed: false,
+      success: false,
+      actions: [{ type: "click", x: 10, y: 20 }],
+      metadata: { interrupted: true, interruptionReason: "SUBMISSION_GUARD" },
+    });
+  });
+
+  it.each(["before_step", "before_action"])(
+    "stops at %s before any action",
+    async (phase) => {
+      const { instance, action } = handler();
+      fakeCuaClient.executeImpl = vi.fn(async () => {
+        await fakeCuaClient.preStepHook?.();
+        await fakeCuaClient.actionHandler?.({ type: "click", x: 10, y: 20 });
+        return { success: true, completed: true, actions: [], message: "done" };
+      });
+
+      const result = await instance.execute({
+        instruction: "Submit",
+        highlightCursor: false,
+        callbacks: {
+          onActionCheckpoint: async (event) => ({
+            proceed: event.phase !== phase,
+            reason: "SUBMISSION_GUARD",
+          }),
+        },
+      });
+
+      expect(action).not.toHaveBeenCalled();
+      expect(result.actions).toEqual([]);
+      expect(result.metadata?.interrupted).toBe(true);
+    },
+  );
+
+  it("fails closed when the checkpoint cannot be reached", async () => {
+    const { instance, action } = handler();
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.preStepHook?.();
+      await fakeCuaClient.actionHandler?.({ type: "click" });
+      return { success: true, completed: true, actions: [], message: "done" };
+    });
+
+    const result = await instance.execute({
+      instruction: "Submit",
+      highlightCursor: false,
+      callbacks: {
+        onActionCheckpoint: async () => {
+          throw new Error("connection refused");
+        },
+      },
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(result.metadata?.interruptionReason).toBe(
+      "Action checkpoint unavailable: connection refused",
+    );
+  });
+});

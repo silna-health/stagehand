@@ -1,3 +1,4 @@
+import { AgentActionInterruptedError } from "./utils/actionCheckpoint.js";
 import {
   GoogleGenAI,
   Content,
@@ -368,6 +369,7 @@ export class GoogleCUAClient extends AgentClient {
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -497,6 +499,7 @@ export class GoogleCUAClient extends AgentClient {
           // Success - we have a valid response
           break;
         } catch (error) {
+          if (error instanceof AgentActionInterruptedError) throw error;
           lastError = error instanceof Error ? error : new Error(String(error));
           logger({
             category: "agent",
@@ -642,6 +645,8 @@ export class GoogleCUAClient extends AgentClient {
                 await new Promise((resolve) => setTimeout(resolve, delay));
               }
             } catch (actionError) {
+              if (actionError instanceof AgentActionInterruptedError)
+                throw actionError;
               if (actionError instanceof StagehandClosedError) {
                 throw actionError;
               }
@@ -710,6 +715,7 @@ export class GoogleCUAClient extends AgentClient {
                 functionResponses.push(functionResponsePart);
               }
             } catch (error) {
+              if (error instanceof AgentActionInterruptedError) throw error;
               logger({
                 category: "agent",
                 message: `Error capturing screenshot: ${error}`,
@@ -750,6 +756,7 @@ export class GoogleCUAClient extends AgentClient {
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger({
@@ -1252,6 +1259,7 @@ export class GoogleCUAClient extends AgentClient {
       try {
         return await this.screenshotProvider();
       } catch (error) {
+        if (error instanceof AgentActionInterruptedError) throw error;
         console.error("Error capturing screenshot:", error);
         throw error;
       }

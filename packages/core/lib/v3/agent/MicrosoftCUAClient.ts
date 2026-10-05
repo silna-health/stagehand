@@ -1,3 +1,4 @@
+import { AgentActionInterruptedError } from "./utils/actionCheckpoint.js";
 import OpenAI from "openai";
 import { LogLine } from "../types/public/logs.js";
 import {
@@ -360,6 +361,7 @@ For each function call, return a json object with function name and arguments wi
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       throw new Error(
         `Failed to parse FARA tool call from response: ${response}. Error: ${error}`,
         { cause: error },
@@ -955,6 +957,7 @@ For each function call, return a json object with function name and arguments wi
         },
       };
     } catch (error) {
+      if (error instanceof AgentActionInterruptedError) throw error;
       logger({
         category: "agent",
         message: `Error during execution: ${error}`,
